@@ -94,7 +94,7 @@ unariserExp ddfs stk env2 (L p ex) = L p <$>
     -- to match the flattened representation. And if the ith projection was a
     -- product before, we have to reconstruct it here, since it will be flattened
     -- after this pass.
-    ProjE i e ->
+    ProjE (i,_) e ->
       case unLoc e of
         MkProdE ls -> unLoc <$> go env2 (ls ! i)
         _ -> do
@@ -109,8 +109,13 @@ unariserExp ddfs stk env2 (L p ex) = L p <$>
              case fty of
                -- reconstruct
                ProdTy tys -> do
-                 return $ MkProdE (map (\k -> l$ ProjE k e') [j..(j+(length tys)-1)])
-               _ -> return $ ProjE j e'
+                 let n = length tys
+                 return $ MkProdE (map (\k -> l$ ProjE (k,n) e') [j..(j+(length tys)-1)])
+               -- FIXME CSK.
+               _ -> do
+                 let ProdTy tys = ety
+                     n = length tys
+                 return $ ProjE (j,n) e'
 
 
     -- Straightforward recursion
@@ -164,7 +169,8 @@ unariserExp ddfs stk env2 (L p ex) = L p <$>
     discharge :: [Int] -> L Exp3 -> L Exp3
     discharge [] e = e
     discharge (ix:rst) (L _ (MkProdE ls)) = discharge rst (ls ! ix)
-    discharge (ix:rst) e = discharge rst (l$ ProjE ix e)
+    -- FIXME CSK.
+    discharge (ix:rst) e = discharge rst (l$ ProjE (ix,100) e)
 
     ls ! i = if i <= length ls
              then ls!!i
@@ -203,7 +209,8 @@ flattenProd ddfs stk env2 ex =
     go2 (t:ts) (e:es) =
       case (t,e) of
         (ProdTy tys, L _ VarE{}) -> do
-          let fs = [l$ ProjE n e | (_ty,n) <- zip tys [0..]]
+          let n = length tys
+              fs = [l$ ProjE (i,n) e | (_ty,i) <- zip tys [0..]]
           es' <- go2 ts es
           return $ fs ++ es'
         (_ty, L _ ProjE{}) -> do
@@ -248,7 +255,7 @@ flattenTy ty =
 flattenExp :: Var -> Ty3 -> L Exp3 -> L Exp3
 flattenExp v ty bod =
   case ty of
-    ProdTy _ ->
+    ProdTy tys ->
       let
           -- | Generate projections for non-product types inside a tuple
           --
@@ -260,13 +267,17 @@ flattenExp v ty bod =
           --     [[0],[1,0],[1,1],[1,2],[1,3,0],[1,3,1]]
           --
           projections :: Ty3 -> ProjStack -> [ProjStack]
-          projections (ProdTy tys) acc =
-            concatMap (\(ty',i) -> projections ty' (i:acc)) (zip tys [0..])
+          projections (ProdTy tys1) acc =
+            concatMap (\(ty',i) -> projections ty' (i:acc)) (zip tys1 [0..])
           projections _ acc = [acc]
 
           projs = projections ty []
-          substs = map (\ps -> (foldr (\i acc -> l$ ProjE i acc) (l$ VarE v) ps,
-                                l$ ProjE (sum ps) (l$ VarE v)))
+
+          n = length tys
+
+          substs = map (\ps -> (foldr (\i acc -> l$ ProjE (i,n) acc) (l$ VarE v) ps,
+                                -- FIXME CSK.
+                                l$ ProjE (sum ps, 100) (l$ VarE v)))
                    projs
           -- FIXME: This is in-efficient because of the substE ?
       in foldr (\(from,to) acc -> substE from to acc) bod substs

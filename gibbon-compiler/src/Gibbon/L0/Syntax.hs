@@ -225,7 +225,7 @@ recoverType ddfs env2 (L _ ex)=
     TimeIt e _ _     -> recoverType ddfs env2 e
     MapE _ e         -> recoverType ddfs env2 e
     FoldE _ _ e      -> recoverType ddfs env2 e
-    ProjE i e ->
+    ProjE (i,_) e ->
       case recoverType ddfs env2 e of
         (ProdTy tys) -> tys !! i
         oth -> error$ "typeExp: Cannot project fields from this type: "++show oth

@@ -534,10 +534,10 @@ inferExp env@FullEnv{dataDefs}
                             (return (e',ty',[]))
                             (copy (e',ty,[]) d)
 
-    ProjE i (L p (VarE v)) ->
+    ProjE (i,n) (L p (VarE v)) ->
         let ProdTy tys = lookupVEnv v env
             ty = tys !! i
-            e' = ProjE i (L p (VarE v))
+            e' = ProjE (i,n) (L p (VarE v))
         in case dest of
              NoDest -> return (lc$ e', ty, [])
              TupleDest ds -> err $ "TODO: handle tuple of destinations for ProjE"
@@ -792,12 +792,12 @@ inferExp env@FullEnv{dataDefs}
           fcs <- tryInRegion cs''
           tryBindReg (lc$ L2.LetE (vr,[],IntTy,L sl2 $ L2.LitSymE x) bod'', ty'', fcs)
 
-        ProjE i arg     -> do
+        ProjE (i,n) arg     -> do
           (e,ProdTy tys,cs) <- inferExp env arg NoDest
           (bod',ty',cs') <- inferExp (extendVEnv vr (tys !! i) env) bod dest
           (bod'',ty'',cs'') <- handleTrailingBindLoc vr (bod', ty', L.nub $ cs ++ cs')
           fcs <- tryInRegion cs''
-          tryBindReg (lc$ L2.LetE (vr,[],tys !! i,L sl2 $ L2.ProjE i e) bod'',
+          tryBindReg (lc$ L2.LetE (vr,[],tys !! i,L sl2 $ L2.ProjE (i,n) e) bod'',
                              ty'', fcs)
 
         CaseE ex ls    -> do

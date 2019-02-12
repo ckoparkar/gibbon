@@ -290,7 +290,7 @@ intAddFun = FunDef "intAdd" "i109" intAddTy id3Bod
                 (S.empty)
                 (IntTy)
                 [])
-    id3Bod = l$ PrimAppE AddP [l$ ProjE 0 (l$ VarE "i109"), l$ ProjE 1 (l$ VarE "i109")]
+    id3Bod = l$ PrimAppE AddP [l$ ProjE (0,2) (l$ VarE "i109"), l$ ProjE (1,2) (l$ VarE "i109")]
 
 intAddMainExp :: L Exp2
 intAddMainExp = l$ LetE ("sum110", [], IntTy,
@@ -512,13 +512,13 @@ buildTreeSumFun = FunDef "buildTreeSum" "i302" buildTreeSumTy buildTreeSumBod
                        l$ Ext $ LetLocE "l304" (AfterConstantLE 1 "lout301") $
                        l$ LetE ("t318",[],ProdTy [IntTy, PackedTy "Tree" "l304"],
                                 l$ AppE "buildTreeSum" ["l304"] (l$ VarE "i303")) $
-                       l$ LetE ("i309",[],IntTy, l$ ProjE 0 (l$ VarE "t318")) $
-                       l$ LetE ("x305",[],PackedTy "Tree" "l304", l$ ProjE 1 (l$ VarE "t318")) $
+                       l$ LetE ("i309",[],IntTy, l$ ProjE (0,2) (l$ VarE "t318")) $
+                       l$ LetE ("x305",[],PackedTy "Tree" "l304", l$ ProjE (1,2) (l$ VarE "t318")) $
                        l$ Ext $ LetLocE "l306" (AfterVariableLE "x305" "l304") $
                        l$ LetE ("t319",[],ProdTy [IntTy, PackedTy "Tree" "l306"],
                                 l$ AppE "buildTreeSum" ["l306"] (l$ VarE "i303")) $
-                       l$ LetE ("i310",[],IntTy, l$ ProjE 0 (l$ VarE "t319")) $
-                       l$ LetE ("y307",[],PackedTy "Tree" "l306", l$ ProjE 1 (l$ VarE "t319")) $
+                       l$ LetE ("i310",[],IntTy, l$ ProjE (0,2) (l$ VarE "t319")) $
+                       l$ LetE ("y307",[],PackedTy "Tree" "l306", l$ ProjE (1,2) (l$ VarE "t319")) $
                        l$ LetE ("j311",[],IntTy, l$ PrimAppE AddP [l$ VarE "i309", l$ VarE "i310"]) $
                        l$ LetE ("a308",[],PackedTy "Tree" "lout301",
                                 l$ DataConE "lout301" "Node" [l$ VarE "x305", l$ VarE "y307"]) $
@@ -644,9 +644,9 @@ addTreesFun = FunDef "addTrees" "trees354" addTreesTy addTreesBod
 
     addTreesBod :: L Exp2
     addTreesBod = l$ LetE ("tree1",[],PackedTy "Tree" "lin351",
-                           l$ ProjE 0 (l$ VarE "trees354")) $
+                           l$ ProjE (0,2) (l$ VarE "trees354")) $
                   l$ LetE ("tree2",[],PackedTy "Tree" "lin352",
-                           l$ ProjE 1 (l$ VarE "trees354")) $
+                           l$ ProjE (1,2) (l$ VarE "trees354")) $
                   l$ CaseE (l$ VarE "tree1")
                   [("Leaf", [("n355","l356")],
                     l$ CaseE (l$ VarE "tree2")
@@ -712,8 +712,8 @@ testProdFun = FunDef "testprod" "tup130" testprodTy testprodBod
                   (S.empty)
                   (ProdTy [(PackedTy "Tree" "lout133"), IntTy])
                   [])
-    testprodBod = l$ LetE ("t134",[], PackedTy "Tree" "lin131", l$ ProjE 0 (l$ VarE "tup130")) $
-                  l$ LetE ("i135",[], IntTy, l$ ProjE 1 (l$ VarE "tup130")) $
+    testprodBod = l$ LetE ("t134",[], PackedTy "Tree" "lin131", l$ ProjE (0,2) (l$ VarE "tup130")) $
+                  l$ LetE ("i135",[], IntTy, l$ ProjE (1,2) (l$ VarE "tup130")) $
                   l$ CaseE (l$ VarE "t134")
                   [("Leaf",[("n136","l137")],
                     l$ LetE ("v138",[],IntTy, l$ PrimAppE AddP [l$ VarE "n136", l$ LitE 1]) $
@@ -729,12 +729,12 @@ testProdFun = FunDef "testprod" "tup130" testprodTy testprodBod
                              l$ AppE "testprod" ["l141","l144"]
                              (l$ MkProdE [l$ VarE "x140", l$ VarE "i135"])) $
 
-                    l$ LetE ("x149",[], PackedTy "Tree" "l144", l$ ProjE 0 (l$ VarE "tup145")) $
+                    l$ LetE ("x149",[], PackedTy "Tree" "l144", l$ ProjE (0,2) (l$ VarE "tup145")) $
                     l$ Ext $ LetLocE "l146" (AfterVariableLE "x149" "l144") $
                     l$ LetE ("tup147",[], ProdTy [PackedTy "Tree" "l146", IntTy],
                             l$ AppE "testprod" ["l143","l146"]
                             (l$ MkProdE [l$ VarE "y142", l$ VarE "i135"])) $
-                    l$ LetE ("y150",[], PackedTy "Tree" "l146", l$ ProjE 0 (l$ VarE "tup147")) $
+                    l$ LetE ("y150",[], PackedTy "Tree" "l146", l$ ProjE (0,2) (l$ VarE "tup147")) $
                     l$ LetE ("node151",[], PackedTy "Tree" "lout133",
                             l$ DataConE "lout133" "Node" [l$ VarE "x149", l$ VarE "y150"]) $
                     l$ LetE ("tup152",[],ProdTy [PackedTy "Tree" "lout133", IntTy],
@@ -1107,13 +1107,13 @@ sumUpSetEvenFun = FunDef "sumUpSetEven" "tr600" sumUpSetEvenFunTy sumUpSetEvenFu
          l$ Ext $ LetLocE "l616" (AfterVariableLE "b609" "l615") $
          l$ LetE ("tx617",[], ProdTy [PackedTy "STree" "l616", IntTy],
                   l$ AppE "sumUpSetEven" ["l612","l616"] (l$ VarE "x611")) $
-         l$ LetE ("x618",[],PackedTy "STree" "l616", l$ ProjE 0 (l$ VarE "tx617")) $
-         l$ LetE ("v619",[],IntTy, l$ ProjE 1 (l$ VarE "tx617")) $
+         l$ LetE ("x618",[],PackedTy "STree" "l616", l$ ProjE (0,2) (l$ VarE "tx617")) $
+         l$ LetE ("v619",[],IntTy, l$ ProjE (1,2) (l$ VarE "tx617")) $
          l$ Ext $ LetLocE "l620" (AfterVariableLE "x618" "l616") $
          l$ LetE ("tx621",[],ProdTy [PackedTy "STree" "l620", IntTy],
                   l$ AppE "sumUpSetEven" ["l622","l620"] (l$ VarE "y613")) $
-         l$ LetE ("y623",[],PackedTy "STree" "l620", l$ ProjE 0 (l$ VarE "tx621")) $
-         l$ LetE ("v624",[],IntTy, l$ ProjE 1 (l$ VarE "tx621")) $
+         l$ LetE ("y623",[],PackedTy "STree" "l620", l$ ProjE (0,2) (l$ VarE "tx621")) $
+         l$ LetE ("v624",[],IntTy, l$ ProjE (1,2) (l$ VarE "tx621")) $
          l$ LetE ("v625",[],IntTy, l$ PrimAppE AddP [l$ VarE "v619", l$ VarE "v624"]) $
          l$ LetE ("b626",[],IntTy, l$ AppE "even" [] (l$ VarE "v625")) $
          l$ LetE ("z627",[],PackedTy "STree" "lout602",
@@ -1219,11 +1219,11 @@ substFun = FunDef "subst" "tr653" substFunTy substFunBod
                   [])
 
     substFunBod :: L Exp2
-    substFunBod = l$ LetE ("old654",[],IntTy, l$ ProjE 0 (l$ VarE "tr653")) $
+    substFunBod = l$ LetE ("old654",[],IntTy, l$ ProjE (0,3) (l$ VarE "tr653")) $
                   l$ LetE ("new655",[],PackedTy "Expr" "lin651",
-                           l$ ProjE 1 (l$ VarE "tr653")) $
+                           l$ ProjE (1,3) (l$ VarE "tr653")) $
                   l$ LetE ("expr656",[],PackedTy "Expr" "lin652",
-                           l$ ProjE 2 (l$ VarE "tr653")) $
+                           l$ ProjE (2,3) (l$ VarE "tr653")) $
                   l$ CaseE (l$ VarE "expr656")
                   [ ("VARREF", [("v657","l658")],
                      l$ LetE ("b659",[], BoolTy,

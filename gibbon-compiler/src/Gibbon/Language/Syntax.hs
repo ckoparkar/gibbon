@@ -33,7 +33,7 @@ module Gibbon.Language.Syntax
 
     -- * Helpers operating on expressions
   , mapExt, mapLocs, mapExprs, visitExp
-  , subst, substE, hasTimeIt, projNonFirst
+  , subst, substE, hasTimeIt -- , projNonFirst
   , mkProj, mkProd, mkLets, flatLets, tuplizeRefs
 
     -- * Helpers operating on types
@@ -369,8 +369,8 @@ data PreExp (ext :: * -> * -> *) loc dec =
    | IfE EXP EXP EXP
 
    -- TODO: eventually tuples will just be a wired-in datatype.
-   | MkProdE   [EXP] -- ^ Tuple construction
-   | ProjE Int EXP   -- ^ Tuple projection.
+   | MkProdE   [EXP]        -- ^ Tuple construction
+   | ProjE (Int, Int) EXP   -- ^ Tuple projection.
 
    | CaseE EXP [(DataCon, [(Var,loc)], EXP)]
      -- ^ Case on a datatype.  Each bound, unpacked variable lives at
@@ -512,7 +512,7 @@ instance (Show l, Out l, Expression (e l (UrTy l)),
       FoldE _ _ e      -> gRecoverType ddfs env2 e
       Ext ext          -> gRecoverType ddfs env2 ext
 
-      ProjE i e ->
+      ProjE (i,_) e ->
         case gRecoverType ddfs env2 e of
           (ProdTy tys) -> tys !! i
           oth -> error$ "typeExp: Cannot project fields from this type: "++show oth
@@ -749,16 +749,16 @@ hasTimeIt (L _ rhs) =
       FoldE (_,_,e1) (_,_,e2) e3 -> hasTimeIt e1 || hasTimeIt e2 || hasTimeIt e3
       Ext _ -> False
 
--- | Project something which had better not be the first thing in a tuple.
-projNonFirst :: (Out l, Out d, Out (e l d)) => Int -> L (PreExp e l d) -> L (PreExp e l d)
-projNonFirst 0 e = error $ "projNonFirst: expected nonzero index into expr: " ++ sdoc e
-projNonFirst i e = L (locOf e) $ ProjE i e
+-- -- | Project something which had better not be the first thing in a tuple.
+-- projNonFirst :: (Out l, Out d, Out (e l d)) => Int -> L (PreExp e l d) -> L (PreExp e l d)
+-- projNonFirst 0 e = error $ "projNonFirst: expected nonzero index into expr: " ++ sdoc e
+-- projNonFirst i e = L (locOf e) $ ProjE i e
 
 -- | Smart constructor that immediately destroys products if it can:
 -- Does NOT avoid single-element tuples.
-mkProj :: Int -> L (PreExp e l d) -> L (PreExp e l d)
-mkProj ix (L _ (MkProdE ls)) = ls !! ix
-mkProj ix e = l$ (ProjE ix e)
+mkProj :: Int -> Int -> L (PreExp e l d) -> L (PreExp e l d)
+mkProj ix _ (L _ (MkProdE ls)) = ls !! ix
+mkProj ix n e = l$ (ProjE (ix, n) e)
 
 -- | Make a product type while avoiding unary products.
 mkProd :: [L (PreExp e l d)]-> L (PreExp e l d)
@@ -784,7 +784,9 @@ flatLets (b:bs) bod = mkLetE b (flatLets bs bod)
 tuplizeRefs :: Var -> [Var] -> [d] -> L (PreExp e l d) -> L (PreExp e l d)
 tuplizeRefs ref vars tys =
   mkLets $
-    L.map (\(v,ty,ix) -> (v,[],ty,mkProj ix (l$ VarE ref))) (L.zip3 vars tys [0..])
+    L.map (\(v,ty,ix) -> (v,[],ty,mkProj ix n (l$ VarE ref))) (L.zip3 vars tys [0..])
+  where
+    n = length tys
 
 --------------------------------------------------------------------------------
 -- Helpers operating on types

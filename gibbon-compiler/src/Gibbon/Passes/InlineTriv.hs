@@ -2,6 +2,7 @@
 module Gibbon.Passes.InlineTriv (inlineTriv, inlineTrivExp) where
 
 import           Data.Loc
+import qualified Data.Map as M
 import           Prelude hiding (exp)
 import           Text.PrettyPrint.GenericPretty
 
@@ -12,27 +13,29 @@ import           Gibbon.L1.Syntax
 -- | Inline trivial let bindings (binding a var to a var or int), mainly to clean up
 --   the output of `flatten`.
 inlineTriv :: Prog1 -> PassM Prog1
-inlineTriv (Prog ddefs funs main) =
+inlineTriv p@(Prog ddefs funs main) =
     return (Prog ddefs (fmap inlineTrivFun funs) main')
   where
-    inlineTrivFun (FunDef nam narg (targ, ty) bod) =
-      FunDef nam narg (targ, ty) (inlineTrivExp ddefs bod)
+    env2 = progToEnv p
+    inlineTrivFun (FunDef nam narg (targ, ty) bod) = do
+      let env2' = extendVEnv narg targ env2
+      FunDef nam narg (targ, ty) (inlineTrivExp ddefs env2' bod)
     main' = case main of
               Nothing -> Nothing
-              Just (m,ty) -> Just (inlineTrivExp ddefs m, ty)
+              Just (m,ty) -> Just (inlineTrivExp ddefs env2 m, ty)
 
 
 type MyExp l = L (PreExp NoExt l (UrTy l))
 type Env l = [(Var, (UrTy l, MyExp l))]
 
-inlineTrivExp :: forall l a . (Out l, Show l)
-              => DDefs a -> MyExp l -> MyExp l
-inlineTrivExp _ddefs = go []
+inlineTrivExp :: forall l. (Out l, Show l)
+              => DDefs (TyOf (MyExp l)) -> Env2 (TyOf (MyExp l)) -> MyExp l -> MyExp l
+inlineTrivExp ddefs env21 = go [] env21
   where
 
   -- Just a hook for debugging:
-  go :: Env l -> MyExp l -> MyExp l
-  go env e  = exp env e
+  go :: Env l -> Env2 (TyOf (MyExp l)) -> MyExp l -> MyExp l
+  go env env2 e = exp env env2 e
 
   -- | Here we go to some lengths to maintain the syntactic invariants
   -- for the extended L2 forms. The idea is that we can only reference
@@ -49,8 +52,8 @@ inlineTrivExp _ddefs = go []
       -- fixme, need gensym:
       Just (ty,oth)  -> L NoLoc $ LetE (v,[],ty,oth) $ fn v
 
-  exp :: Env l -> MyExp l -> (MyExp l)
-  exp env (L p0 e0) = L p0 $
+  exp :: Env l -> Env2 (TyOf (MyExp l)) -> MyExp l -> (MyExp l)
+  exp env env2 (L p0 e0) = L p0 $
     case e0 of
       Ext _  -> e0
       VarE v -> case lookup v env of
@@ -59,38 +62,44 @@ inlineTrivExp _ddefs = go []
       LitE i -> LitE i
       LitSymE v -> LitSymE v
 
-      AppE v lvs e -> AppE v lvs $ go env e
-      PrimAppE p es -> PrimAppE p $ map (go env) es
+      AppE v lvs e -> AppE v lvs $ go env env2 e
+      PrimAppE p es -> PrimAppE p $ map (go env env2) es
 
       LetE (v,lvs,t,e') e ->
        case e' of
          L _ (VarE v') ->
            case lookup v' env of
-             Nothing -> unLoc $ go ((v,(t,e')):env) e
-             Just pr -> unLoc $ go ((v,pr):env) e
+             Nothing -> unLoc $ go ((v,(t,e')):env) (extendVEnv v t env2) e
+             Just pr -> unLoc $ go ((v,pr):env) (extendVEnv v t env2) e
          et | isTrivial et ->
                 -- Apply existing renames:
-                let et' = go env et in
-                unLoc $ go ((v,(t,et')):env) e
-         _ -> LetE (v,lvs,t,go env e') (go env e)
+                let et' = go env env2 et in
+                unLoc $ go ((v,(t,et')):env) (extendVEnv v t env2) e
+         _ -> LetE (v,lvs,t,go env env2 e') (go env (extendVEnv v t env2) e)
 
-      IfE e1 e2 e3 -> IfE (go env e1) (go env e2) (go env e3)
+      IfE e1 e2 e3 -> IfE (go env env2 e1) (go env env2 e2) (go env env2 e3)
 
       -- TODO: Type check here:
-      ProjE i e -> unLoc $ mkProj i $ go env e
+      -- FIXME CSK.
+      ProjE (i,_) e -> unLoc $ mkProj i 100 $ go env env2 e
 
-      MkProdE es -> MkProdE $ map (go env) es
+      MkProdE es -> MkProdE $ map (go env env2) es
       CaseE e mp ->
-       let e' = go env e
-           mp' = map (\(c,args,ae) -> (c,args,go env ae)) mp
+       let e' = go env env2 e
+           mp' = map (\(c,args,ae) ->
+                         let tys   = lookupDataCon ddefs c
+                             vars  = map fst args
+                             env2' = extendsVEnv (M.fromList (zip vars tys)) env2
+                         in (c,args,go env env2' ae))
+                     mp
        in CaseE e' mp'
 
-      DataConE loc c es -> DataConE loc c $ map (go env) es
-      TimeIt e t b -> TimeIt (go env e) t b
-      ParE a b -> ParE (go env a) (go env b)
-      MapE (v,t,e') e -> MapE (v,t,go env e') (go env e)
+      DataConE loc c es -> DataConE loc c $ map (go env env2) es
+      TimeIt e t b -> TimeIt (go env env2 e) t b
+      ParE a b -> ParE (go env env2 a) (go env env2 b)
+      MapE (v,t,e') e -> MapE (v,t,go env env2 e') (go env env2 e)
       FoldE (v1,t1,e1) (v2,t2,e2) e3 ->
-       FoldE (v1,t1,go env e1) (v2,t2,go env e2) (go env e3)
+       FoldE (v1,t1,go env env2 e1) (v2,t2,go env env2 e2) (go env env2 e3)
 
       {-
       -- FIXME: Remove:

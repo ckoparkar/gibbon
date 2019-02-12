@@ -766,8 +766,9 @@ elimFunRefsFun ddefs low env2 new_fn_name refs fn@FunDef{funArg, funTy} = do
             ArrowTy{} -> (elim ++ [e1], sbst, offset-1)
             ProdTy tys ->
               foldl
-                (\(elim', sbst', offset') (ty',n) ->
-                   go (elim', sbst', offset') (mkProj n e1) (mkProj (n+offset') e2) ty')
+                (\(elim', sbst', offset') (ty',i) ->
+                   -- FIXME CSK.
+                   go (elim', sbst', offset') (mkProj i 0 e1) (mkProj (i+offset') 0 e2) ty')
                 (elim, sbst, offset)
                 (zip tys [0..])
             _ -> (elim, sbst ++ [(e1, e2)], offset)

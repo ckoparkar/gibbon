@@ -199,7 +199,7 @@ instance HasPrettyToo e l d => Pretty (PreExp e l d) where
                           text "else" <+>
                           pprintWithStyle sty e3
           MkProdE es -> lparen <> hcat (punctuate (text ", ") (map (pprintWithStyle sty) es)) <> rparen
-          ProjE i e ->
+          ProjE (i,_) e ->
               let edoc = pprintWithStyle sty e
               in case sty of
                 PPInternal ->  text "#" <> int i <+> edoc
@@ -275,8 +275,8 @@ instance Pretty L4.Prog where
 
 --------------------------------------------------------------------------------
 
--- Oh no, all other generic PreExp things are defined over (PreExp e l (UrTy l)).
--- We have to redefine this for L0 (which doesn't use UrTy).
+-- All other generic PreExp things are defined over (PreExp e l (UrTy l)), so
+-- we have to redefine them for L0 (which uses Ty0 instead of UrTy).
 
 instance Pretty L0.Ty0 where
   pprintWithStyle _ ty =

@@ -108,12 +108,14 @@ cursorizeFunDef ddefs fundefs FunDef{funName,funTy,funArg,funBody} =
        totalRegs = length inRegs + length outRegs
 
        -- Input & output regions are always inserted before all other arguments.
-       regBinds =  mkLets [ (toEndV reg, [], CursorTy, l$ ProjE i (l$ VarE newarg))
+       -- FIXME CSK.
+       regBinds =  mkLets [ (toEndV reg, [], CursorTy, l$ ProjE (i,100) (l$ VarE newarg))
                           | (reg, i) <- zip (inRegs ++ outRegs) [0..]]
 
        -- Output cursors after that.
        outCurBinds = regBinds .
-                     mkLets [ (cur,[],CursorTy, l$ ProjE i (l$ VarE newarg))
+                     -- FIXME CSK.
+                     mkLets [ (cur,[],CursorTy, l$ ProjE (i,100) (l$ VarE newarg))
                             | (cur,i) <- zip outLocs [totalRegs..]]
 
        -- Then the input cursors. Create projections for input cursors here
@@ -154,7 +156,8 @@ cursorizeFunDef ddefs fundefs FunDef{funName,funTy,funArg,funBody} =
     nProj :: Int -> Var -> L L3.Exp3
     nProj n arg = if n == 0
                   then (l$ VarE arg)
-                  else mkProj n (l$ VarE arg)
+                  -- FIXME CSK.
+                  else mkProj n 100 (l$ VarE arg)
 
     -- | Build projections for packed values in the input type
     --   This is used to create bindings for input location variables.
@@ -180,8 +183,9 @@ cursorizeFunDef ddefs fundefs FunDef{funName,funTy,funArg,funBody} =
        go acc e ty =
          case ty of
            PackedTy{} -> acc ++ [e]
-           ProdTy tys -> L.foldl (\acc2 (ty',n) -> go acc2 (mkProj n e) ty')
-                                 acc (zip tys [0..])
+           ProdTy tys -> let n = length tys
+                         in L.foldl (\acc2 (ty',i) -> go acc2 (mkProj i n e) ty')
+                                    acc (zip tys [0..])
            _ -> acc
 
     cursorizeArrowTy :: ArrowTy2 -> (Ty3 , Ty3)
@@ -616,8 +620,9 @@ cursorizeProj isPackedContext ddfs fundefs denv tenv ex =
       let ty'  = gRecoverType ddfs (Env2 tenv M.empty) rhs
           ty'' = cursorizeTy ty'
           bnds = if isPackedTy ty'
-                 then [ (v       ,[], projValTy ty'' , mkProj 0 rhs')
-                      , (toEndV v,[], projEndsTy ty'', mkProj 1 rhs') ]
+                 -- FIXME CSK.
+                 then [ (v       ,[], projValTy ty'' , mkProj 0 2 rhs')
+                      , (toEndV v,[], projEndsTy ty'', mkProj 1 2 rhs') ]
                  else [(v,[], ty'', rhs')]
           tenv' = if isPackedTy ty'
                   then M.union (M.fromList [(v,ty'), (toEndV v, projEndsTy ty')]) tenv
@@ -738,14 +743,17 @@ cursorizePar isPackedContext ddfs fundefs denv tenv ex =
           ty' = stripTyLocs ty
       part <- gensym "par_part"
       case retlocs of
-        [] -> return (ty', [(part,[], ty', mkProj idx (l$ VarE par_tup))], part, 0)
+        [] -> return (ty', [(part,[], ty', mkProj idx 2 (l$ VarE par_tup))], part, 0)
         _  -> do
           -- See Note [Projections off of parallel tuples]
           tmp <- gensym "par_tmp"
           let (ty'', idx1) = tyWithWitnesses f ty
-              bnds = [(tmp,  [], ty'', mkProj idx (l$ VarE par_tup))
-                     ,(part, [], ty' , mkProj idx1 (l$ VarE tmp))] ++
-                     [ (loc,[],CursorTy, mkProj i (l$ VarE tmp))
+              -- ProdTy tys = ty''
+              -- n = length tys
+              -- FIXME CSK.
+              bnds = [(tmp,  [], ty'', mkProj idx 100 (l$ VarE par_tup))
+                     ,(part, [], ty' , mkProj idx1 100 (l$ VarE tmp))] ++
+                     [ (loc,[],CursorTy, mkProj i 100 (l$ VarE tmp))
                      | (loc, i) <- zip (L.take idx1 locs1) [0..]]
           return (ty'', bnds, part, idx1)
 
@@ -796,17 +804,20 @@ cursorizeLet isPackedContext ddfs fundefs denv tenv (v,locs,ty,rhs) bod
             ty''  = stripTyLocs ty'
             rhs'' = l$ VarE fresh
 
+            ProdTy tys = ty''
+            n = length tys
+
             bnds = case locs of
                       []    -> [ (fresh   , [], ty''          , rhs' )
-                               , (v       , [], projTy 0 ty'' , mkProj 0 rhs'')
-                               , (toEndV v, [], projTy 1 ty'' , mkProj 1 rhs'')]
+                               , (v       , [], projTy 0 ty'' , mkProj 0 n rhs'')
+                               , (toEndV v, [], projTy 1 ty'' , mkProj 1 n rhs'')]
 
                       _ -> let nLocs = length locs
-                               locBnds = [(loc  ,[], CursorTy, mkProj n rhs'')
-                                         | (loc,n) <- zip locs [0..]]
+                               locBnds = [(loc  ,[], CursorTy, mkProj i n rhs'')
+                                         | (loc,i) <- zip locs [0..]]
                                bnds' = [(fresh   ,[], ty''                         , rhs')
-                                       ,(v       ,[], projTy 0 $ projTy nLocs ty'' , mkProj 0 $ mkProj nLocs rhs'')
-                                       ,(toEndV v,[], projTy 1 $ projTy nLocs ty'' , mkProj 1 $ mkProj nLocs rhs'')]
+                                       ,(v       ,[], projTy 0 $ projTy nLocs ty'' , mkProj 0 n $ mkProj nLocs n rhs'')
+                                       ,(toEndV v,[], projTy 1 $ projTy nLocs ty'' , mkProj 1 n $ mkProj nLocs n rhs'')]
                            in bnds' ++ locBnds
         case M.lookup (toEndV v) denv of
           Just xs -> error $ "todo: " ++ sdoc xs
@@ -830,8 +841,9 @@ cursorizeLet isPackedContext ddfs fundefs denv tenv (v,locs,ty,rhs) bod
                           M.fromList [(loc,CursorTy) | loc <- locs]
 
                 bnds  = [(fresh, [], ty'', rhs')] ++
-                        [(loc,[],CursorTy, l$ ProjE n (l$ VarE fresh)) | (loc,n) <- (zip locs [0..])]
-                        ++ [(v,[], projTy (length locs) ty'', l$ ProjE (length locs) (l$ VarE fresh))]
+                        -- FIXME CSK.
+                        [(loc,[],CursorTy, l$ ProjE (n,100) (l$ VarE fresh)) | (loc,n) <- (zip locs [0..])]
+                        ++ [(v,[], projTy (length locs) ty'', l$ ProjE (length locs, 100) (l$ VarE fresh))]
             unLoc . mkLets bnds <$> go tenv'' bod
 
     | otherwise = do
@@ -1014,8 +1026,8 @@ unpackDataCon ddfs fundefs denv1 tenv1 isPacked scrtCur (dcon,vlocs1,rhs) = do
 
                       binds = [(tmp     , [], ProdTy [CursorTy, CursorTy], l$ Ext $ ReadCursor cur),
                                (loc     , [], CursorTy, l$ VarE cur),
-                               (v       , [], CursorTy, l$ ProjE 0 (l$ VarE tmp)),
-                               (toEndV v, [], CursorTy, l$ ProjE 1 (l$ VarE tmp))]
+                               (v       , [], CursorTy, l$ ProjE (0,2) (l$ VarE tmp)),
+                               (toEndV v, [], CursorTy, l$ ProjE (1,2) (l$ VarE tmp))]
                   bod <- go (toEndV v) rst_vlocs rst_tys indirections_env denv tenv'
                   return $ mkLets binds bod
 
@@ -1065,20 +1077,21 @@ unpackDataCon ddfs fundefs denv1 tenv1 isPacked scrtCur (dcon,vlocs1,rhs) = do
                   tenv
 
           binds = [(tmp     , [], ProdTy [IntTy, CursorTy], l$ Ext $ ReadInt loc),
-                   (v       , [], IntTy   , l$ ProjE 0 (l$ VarE tmp)),
-                   (toEndV v, [], CursorTy, l$ ProjE 1 (l$ VarE tmp))]
+                   -- FIXME CSK.
+                   (v       , [], IntTy   , l$ ProjE (0,100) (l$ VarE tmp)),
+                   (toEndV v, [], CursorTy, l$ ProjE (1,100) (l$ VarE tmp))]
       return (tenv', binds)
 
 
 giveStarts :: Ty2 -> L Exp3 -> L Exp3
 giveStarts ty e =
   case ty of
-    PackedTy{} -> mkProj 0 e
+    PackedTy{} -> mkProj 0 100 e
     ProdTy tys -> case unLoc e of
                     MkProdE es -> l$ MkProdE $ L.map (\(ty',e') -> giveStarts ty' e') (zip tys es)
-                    VarE{} -> l$ MkProdE $ L.map (\(ty',n) -> giveStarts ty' (mkProj n e)) (zip tys [0..])
+                    VarE{} -> l$ MkProdE $ L.map (\(ty',i) -> giveStarts ty' (mkProj i 100 e)) (zip tys [0..])
                     -- This doesn't look right..
-                    ProjE n x -> giveStarts (tys !! n) (mkProj 0 (mkProj n x))
+                    ProjE (i,n) x -> giveStarts (tys !! i) (mkProj 0 n (mkProj i n x))
                     oth -> error $ "giveStarts: unexpected expresson" ++ sdoc (oth,ty)
     _ -> e
 
@@ -1130,11 +1143,11 @@ fromDi (Di x) = x
 -- | Project the cursor package from a dilated expression, contains pointers
 -- to all the ENDs.
 projEnds :: DiExp (L Exp3) -> (L Exp3)
-projEnds (Di e) = mkProj 1 e
+projEnds (Di e) = mkProj 1 2 e
 
 -- | Project the original value from a dilated expression.
 projVal :: DiExp (L Exp3) -> (L Exp3)
-projVal (Di e) = mkProj 0 e
+projVal (Di e) = mkProj 0 2 e
 
 -- | Constructor that combines a regular expression with a list of
 -- corresponding end cursors.

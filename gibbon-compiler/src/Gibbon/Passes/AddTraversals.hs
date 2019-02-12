@@ -27,10 +27,11 @@ type RegEnv = M.Map LocVar Var
 
 addTraversals :: Prog2 -> PassM Prog2
 addTraversals prg@Prog{ddefs,fundefs,mainExp} = do
+  let env2 = progToEnv prg
   funs <- mapM (addTraversalsFn ddefs fundefs) fundefs
   mainExp' <-
     case mainExp of
-      Just (ex,ty) -> Just <$> (,ty) <$> addTraversalsExp ddefs fundefs emptyEnv2 M.empty "mainExp" ex
+      Just (ex,ty) -> Just <$> (,ty) <$> addTraversalsExp ddefs fundefs env2 M.empty "mainExp" ex
       Nothing -> return Nothing
   return prg { ddefs = ddefs
              , fundefs = funs
@@ -217,10 +218,11 @@ genTravBinds ls = concat <$>
         ProdTy tys -> do
           -- So that we don't have to make assumptions about the 'e' being a VarE
           tmp <- gensym "tmp_trav"
-          proj_binds <-
+          proj_binds <- do
+            let n = length tys
             genTravBinds (L.foldl (\acc (ty1,idx) ->
                                    if isPackedTy ty1
-                                   then (mkProj idx (l$ VarE tmp), ty1) : acc
+                                   then (mkProj idx n (l$ VarE tmp), ty1) : acc
                                    else acc)
                                   []
                                   (zip tys [0..]))

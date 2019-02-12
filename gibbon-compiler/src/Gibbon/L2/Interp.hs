@@ -195,8 +195,8 @@ interp rc ddefs fenv e = fst <$> go M.empty M.empty e
             (args, szs) <- unzip <$> mapM (go env sizeEnv) ls
             return (VProd args , SMany szs)
 
-        ProjE ix e0 -> do (VProd ls, SMany szs) <- go env sizeEnv e0
-                          return (ls !! ix, szs !! ix)
+        ProjE (ix,_) e0 -> do (VProd ls, SMany szs) <- go env sizeEnv e0
+                              return (ls !! ix, szs !! ix)
 
         TimeIt bod _ isIter -> do
               let iters = if isIter then rcIters rc else 1

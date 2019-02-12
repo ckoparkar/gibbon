@@ -485,8 +485,10 @@ lower Prog{fundefs,ddefs,mainExp} = do
       -- Finally reprocess teh whole thing
       tail (go (zip3 tmps tys ls) bod')
 
-{- Note [Lowering the parallel tuple combinator]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{-
+
+Lowering the parallel tuple combinator
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ASSUMPTION: Sub-expressions are function calls.
 
@@ -502,7 +504,7 @@ Therefore, if any of the subexpressions (a or b) does have a product type
     let x : Int = #1 fltT
     ...
 
-After Lower runs, a function returning a product type is encoded as to return
+After Lower runs, a function returning a product type is encoded as if it returns
 *multiple* values, instead of a tuple. So, the sumtree call is lowered as:
 
     T.LetCallT [(pvrtmp0, Cursor), (pvrtmp1, Int)] sumtree [VarE end_r, VarE tr00] BOD
@@ -519,7 +521,8 @@ See [Hacky substitution to encode ParE].
             e' <- tail (l$ LetE (tmp,[],ty,e) (l$ LitE 42))
             if isProdTy ty
             then return (e', hackyParSubst idx v (L.map fst (T.binds e')) b)
-            else return (e', substE (l$ ProjE idx (l$ VarE v))
+            -- FIXME CSK.
+            else return (e', substE (l$ ProjE (idx,2) (l$ VarE v))
                                     (l$ VarE (fst (head (T.binds e'))))
                                     b)
       (a', bod1) <- doParExp 0 tya a bod
@@ -578,8 +581,9 @@ See [Hacky substitution to encode ParE].
       ctmp <- gensym $ toVar "tmpcur"
 
       -- Here we lamely chase down all the tuple references and make them variables:
-      let bod' = L1.substE (l$ ProjE 0 (l$ VarE v)) (l$ VarE vtmp) $
-                 L1.substE (l$ ProjE 1 (l$ VarE v)) (l$ VarE ctmp)
+      -- FIXME CSK.
+      let bod' = L1.substE (l$ ProjE (0,2) (l$ VarE v)) (l$ VarE vtmp) $
+                 L1.substE (l$ ProjE (1,2) (l$ VarE v)) (l$ VarE ctmp)
                  bod
 
       dbgTrace 5 (" [lower] ReadInt, after substing references to "
@@ -617,8 +621,9 @@ See [Hacky substitution to encode ParE].
       ctmp <- gensym $ toVar "tmpcur"
 
       -- Here we lamely chase down all the tuple references and make them variables:
-      let bod' = L1.substE (l$ ProjE 0 (l$ VarE v)) (l$ VarE vtmp) $
-                 L1.substE (l$ ProjE 1 (l$ VarE v)) (l$ VarE ctmp)
+      -- FIXME CSK.
+      let bod' = L1.substE (l$ ProjE (0,2) (l$ VarE v)) (l$ VarE vtmp) $
+                 L1.substE (l$ ProjE (1,2) (l$ VarE v)) (l$ VarE ctmp)
                  bod
 
       dbgTrace 5 (" [lower] ReadTag, after substing references to "
@@ -664,8 +669,9 @@ See [Hacky substitution to encode ParE].
       vtmp <- gensym $ toVar "tmpcur"
       ctmp <- gensym $ toVar "tmpaftercur"
       -- Here we lamely chase down all the tuple references and make them variables:
-      let bod' = L1.substE (l$ ProjE 0 (l$ VarE v)) (l$ VarE vtmp) $
-                 L1.substE (l$ ProjE 1 (l$ VarE v)) (l$ VarE ctmp)
+      -- FIXME CSK.
+      let bod' = L1.substE (l$ ProjE (0,2) (l$ VarE v)) (l$ VarE vtmp) $
+                 L1.substE (l$ ProjE (1,2) (l$ VarE v)) (l$ VarE ctmp)
                  bod
       T.LetPrimCallT [(vtmp,T.CursorTy),(ctmp,T.CursorTy)] T.ReadCursor [T.VarTriv c] <$>
         tail bod'
@@ -695,13 +701,13 @@ See [Hacky substitution to encode ParE].
 
 
     -- Tail calls are just an optimization, if we have a Proj/App it cannot be tail:
-    ProjE ix (L _ (AppE f _ e)) -> dbgTrace 5 "ProjE" $ do
+    ProjE (ix,n) (L _ (AppE f _ e)) -> dbgTrace 5 "ProjE" $ do
         tmp <- gensym $ toVar "prjapp"
         let (ProdTy inTs, _) = funTy (fundefs # f)
         tail $ l$ LetE ( tmp
                        , []
                        , fmap (const ()) (inTs !! ix)
-                       , l$ ProjE ix (l$ AppE f [] e))
+                       , l$ ProjE (ix,n) (l$ AppE f [] e))
                  (l$ VarE tmp)
 
     LetE (_,_,_, (L _ (L1.AppE f _ _))) _
@@ -752,8 +758,8 @@ See [Hacky substitution to encode ParE].
 
 -- | View pattern for matching agaist projections of Foo rather than just Foo.
 projOf :: L Exp3 -> ([Int], L Exp3)
-projOf (L _ (ProjE ix e)) = let (stk,e') = projOf e
-                           in (stk++[ix], e')
+projOf (L _ (ProjE (ix,_) e)) = let (stk,e') = projOf e
+                                in (stk++[ix], e')
 projOf e = ([],e)
 
 
@@ -788,12 +794,13 @@ eliminateProjs vr tys bod =
              " projections on variable "++show vr++" in expr with types "
                                         ++show tys++":\n   "++sdoc bod) $
  do tmps <- mapM (\_ -> gensym "pvrtmp") [1.. (length tys)]
+    let n = length tys
     let go _ [] acc =
             -- If there are ANY references left, we are forced to make the products:
             L1.subst vr (l$ MkProdE (L.map (l . VarE) tmps)) acc
         go ix ((pvr,_pty):rs) acc =
            go (ix+1) rs
-             (L1.substE (l$ ProjE ix (l$ VarE vr)) (l$ VarE pvr) acc)
+             (L1.substE (l$ ProjE (ix,n) (l$ VarE vr)) (l$ VarE pvr) acc)
     let bod' = go 0 (zip tmps tys) bod
     return (tmps,bod')
 
@@ -872,10 +879,14 @@ prim p =
     SymAppend    -> error "lower/prim: internal error. SymAppend should not get here."
     PEndOf       -> error "lower/prim: internal error. PEndOf shouldn't be here."
 
-{- Note [Hacky substitution to encode ParE]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{-
+
+Hacky substitution to encode ParE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 (1) find w s.t `w = proje i p`
 (2) map (\b -> subst (proje idx w) b) binds
+
 -}
 hackyParSubst :: Int -> Var -> [Var] -> L Exp3 -> L Exp3
 hackyParSubst i p binds (L loc ex) = L loc $
@@ -885,9 +896,10 @@ hackyParSubst i p binds (L loc ex) = L loc $
     LitSymE{} -> ex
     AppE{} -> ex
     PrimAppE{} -> ex
-    LetE (w,locs,ty, rhs@(L _ (ProjE j (L _ (VarE q))))) bod ->
+    LetE (w,locs,ty, rhs@(L _ (ProjE (j,n) (L _ (VarE q))))) bod ->
       if q == p && j == i
-      then unLoc $ L.foldr (\(v, i) acc -> substE (l$ ProjE i (l$ VarE w)) (l$ VarE v) acc) bod (zip binds [0..])
+      -- FIXME CSK.
+      then unLoc $ L.foldr (\(v, i) acc -> substE (l$ ProjE (i,n) (l$ VarE w)) (l$ VarE v) acc) bod (zip binds [0..])
       else LetE (w,locs,ty,rhs) (go bod)
     LetE (v,locs,ty,rhs) bod ->
       LetE (v,locs,ty,rhs) (go bod)

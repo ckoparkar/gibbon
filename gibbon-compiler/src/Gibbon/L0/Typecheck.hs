@@ -173,10 +173,13 @@ tcExp ddefs sbst venv fenv bound_tyvars e@(L loc ex) = (\(a,b,c) -> (a,b, L loc 
       (s1, es_tys, es_tc) <- tcExps ddefs sbst venv fenv bound_tyvars es
       pure (s1, ProdTy es_tys, MkProdE es_tc)
 
-    ProjE i a -> do
+    -- FIXME CSK (docs, another case for good error messages).
+    ProjE (i,_) a -> do
      (s1, a_ty, a_tc) <- go a
      case zonkTy s1 a_ty of
-       ProdTy tys -> pure (s1, tys !! i, ProjE i a_tc)
+       ProdTy tys -> do
+         let n = length tys
+         pure (s1, tys !! i, ProjE (i,n) a_tc)
        a_ty' -> err $ "tcExp: Coulnd't match expected type: ProdTy [...]"
                       <+> "with actual type: " <+> doc a_ty'
                       $$ exp_doc

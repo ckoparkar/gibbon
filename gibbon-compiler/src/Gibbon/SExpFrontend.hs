@@ -336,7 +336,8 @@ exp se =
              (exp bod)
 
    Ls3 l "vector-ref" evec (G _ (HSInt ind)) ->
-       loc l $ ProjE (fromIntegral ind) (exp evec)
+       -- FIXME CSK.
+       loc l $ ProjE (fromIntegral ind, 0) (exp evec)
 
    Ls3 l "par" a b -> loc l $ ParE (exp a) (exp b)
 

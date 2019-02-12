@@ -161,7 +161,7 @@ exp ddfs env2 (L sloc e0) =
                     return (b1, IfE a' (flatLets b2 b') (flatLets b3 c'))
     -- This can happen anywhere, but doing it here prevents
     -- unneccessary bloat where we can ill afford it:
-    ProjE ix (L _ (MkProdE ls)) -> do
+    ProjE (ix,_) (L _ (MkProdE ls)) -> do
       -- dbgTrace 5 (" [flatten] Reducing project-of-tuple, index "++show ix++
       --             " expr:  "++take 80 (show l)++"...")
       (bnd,rhs) <- go (ls !! ix)

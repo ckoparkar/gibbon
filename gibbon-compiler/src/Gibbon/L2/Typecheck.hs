@@ -284,7 +284,7 @@ tcExp ddfs env funs constrs regs tstatein exp@(L _ ex) =
                (tys,tstate) <- tcExps ddfs env funs constrs regs tstatein es
                return (ProdTy tys,tstate)
 
-      ProjE i e -> do
+      ProjE (i,_) e -> do
 
                (ty,tstate) <- recur tstatein e
                tyi <- tcProj exp i ty

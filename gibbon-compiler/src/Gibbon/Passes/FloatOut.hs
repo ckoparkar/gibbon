@@ -49,8 +49,8 @@ floatOutExp :: DDefs Ty1 -> Env2 Ty1 -> L Exp1 -> FloatOutM (L Exp1)
 floatOutExp ddefs env2 (L p ex) = (L p) <$>
   case ex of
     ParE a b -> do
-     (bnds1, a') <- dopar a
-     (bnds2, b') <- dopar b
+     (bnds1, a') <- dopar env2 a
+     (bnds2, b') <- dopar env2 b
      return $ unLoc $ mkLets (bnds1 ++ bnds2) (l$ ParE a' b')
 
     -- standard recursion here
@@ -83,21 +83,22 @@ floatOutExp ddefs env2 (L p ex) = (L p) <$>
       (dcon,vlocs,) <$> floatOutExp ddefs env21 rhs
 
 
-    dopar :: L Exp1 -> FloatOutM ([(Var,[()],Ty1,L Exp1)], L Exp1)
-    dopar (L p1 e) = do
+    dopar :: Env2 Ty1 -> L Exp1 -> FloatOutM ([(Var,[()],Ty1,L Exp1)], L Exp1)
+    dopar env21 (L p1 e) = do
       case e of
         AppE{} -> return ([], L p1 e)
         _ -> do
           let free_vars = S.toList (gFreeVars e)
-              intys = map (\v -> lookupVEnv v env2) free_vars
-              retty = gRecoverType ddefs env2 (L p e)
+              intys = map (\v -> lookupVEnv v env21) free_vars
+              retty = gRecoverType ddefs env21 (L p e)
           var <- lift $ gensym "float_out_arg"
           funarg <- lift $ gensym "arg"
           funname <- lift $ gensym "float_out_fn"
-          let fn = FunDef { funName = funname
+          let n  = length intys
+              fn = FunDef { funName = funname
                           , funArg  = funarg
                           , funTy   = (ProdTy intys, retty)
-                          , funBody = mkLets [ (v,[],ty,mkProj idx (l$ VarE funarg))
+                          , funBody = mkLets [ (v,[],ty,mkProj idx n (l$ VarE funarg))
                                              | ((v,ty), idx) <- (zip (zip free_vars intys) [0..])]
                                       (L p e)
                           }

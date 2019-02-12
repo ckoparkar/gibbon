@@ -261,7 +261,7 @@ tcExp isPacked ddfs env exp@(L p ex) =
       tys <- mapM go es
       return $ ProdTy tys
 
-    ProjE i e -> do
+    ProjE (i,_) e -> do
       ty  <- go e
       tyi <- tcProj exp i ty
       return tyi

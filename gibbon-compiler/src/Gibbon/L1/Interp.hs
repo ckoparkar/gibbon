@@ -81,10 +81,10 @@ interp rc _ddefs fenv = go M.empty
           LitSymE s -> return $ VInt (strToInt $ fromVar s)
           VarE v    -> return $ env # v
 
-          PrimAppE p ls -> do args <- mapM (go env) ls
-                              return $ applyPrim rc p args
-          ProjE ix ex   -> do VProd ls <- go env ex
-                              return $ ls !! ix
+          PrimAppE p ls   -> do args <- mapM (go env) ls
+                                return $ applyPrim rc p args
+          ProjE (ix,_) ex -> do VProd ls <- go env ex
+                                return $ ls !! ix
 
           AppE f _ b ->  do rand <- go env b
                             case M.lookup f fenv of
